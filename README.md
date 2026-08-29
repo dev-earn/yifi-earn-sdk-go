@@ -1,6 +1,8 @@
 # yifi-earn-sdk-go
 
-Go SDK for the YIFI gateway API, including public core, zap and partner-related endpoints.
+Go SDK for the yifi Earn API: public market data (chains, tokens, markets,
+strategies), zap building, and authenticated partner operations (policies, API
+keys, fee balances and claims).
 
 ## Install
 
@@ -8,149 +10,177 @@ Go SDK for the YIFI gateway API, including public core, zap and partner-related 
 go get github.com/dev-earn/yifi-earn-sdk-go
 ```
 
-## Quick start
+Requires Go 1.26+.
+
+## Quick start (public data)
+
+Public endpoints need no credentials.
 
 ```go
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	yifi "github.com/dev-earn/yifi-earn-sdk-go"
-	"github.com/dev-earn/yifi-earn-sdk-go/models"
 )
 
 func main() {
 	client, err := yifi.NewClient()
 	if err != nil {
-		panic(fmt.Sprintf("yifi new client init failed: %s", err.Error()))
+		panic(err)
 	}
 
 	chains, err := client.GetChains(context.Background())
 	if err != nil {
-		panic(fmt.Sprintf("get chains error: %s", err.Error()))
+		panic(err)
 	}
-
-	b, err := json.MarshalIndent(chains, "", "  ")
-	if err != nil {
-		panic(fmt.Sprintf("marshal chains error: %s", err.Error()))
-	}
-
-	fmt.Println(string(b))
+	fmt.Printf("%+v\n", chains)
 }
 ```
+
+### Identifiers
+
+Tokens, markets and strategies are addressed by a `chain:address` string, e.g.
+`bsc:0xb0b84d294e0c75a6abe60171b70edeb2efd14a1b`. Native coins use the zero
+address, e.g. `bsc:0x0000000000000000000000000000000000000000`.
+
+### Testnet
+
+```go
+client, _ := yifi.NewClient()
+```
+
+## Authentication
+
+Partner endpoints require credentials via `WithPartnerAuth`. Each request is
+signed automatically (HMAC-SHA256 over the API key, a per-request nonce and the
+body hash). Public endpoints keep working without auth.
+
+```go
+client, err := yifi.NewClient(yifi.WithPartnerAuth(models.PartnerAuth{
+	PartnerID: "your_partner_id",
+	APIKey:    "yifi_pk_live_...",
+	Secret:    "...",
+}))
+```
+
+Create and manage API keys via the frontend or support.
+
+## Signing transactions
+
+`BuildZap`, `ClaimFees` and `ClaimAllFees` return an **unsigned** transaction
+(`models.Signature` / `models.TxInfo`), not a broadcast one. You sign it with
+the sender's key and submit it to an RPC yourself. A few gotchas:
+
+- `Signature.Value` is a **decimal wei string** (e.g. `"1000000000000000"`), not
+  hex — parse it with base 10.
+- `InputAmount` is also decimal wei in the token's smallest unit
+  (e.g. `"1000000"` = 1 USDT at 6 decimals).
+- For a native-coin input (zero address) the router wraps the coin using the
+  transaction's `value`; you do not need the wrapped token. For an ERC-20 input
+  you must `approve` the router first, or the zap reverts with
+  `TRANSFER_FROM_FAILED`.
+
+See [`examples/sign.go`](examples/sign.go) for a complete sign-and-send helper.
 
 ## Partner flow
 
-If you are a partner, the recommended flow is:
-
-1. Generate an API key via the frontend or by contacting support.
-2. Initialize the SDK client with your `partnerID`, `apiKey`, and `secret`.
-3. Update your partner policy, especially the fee percentage.
-4. Build zaps using the partner-authenticated client.
-5. Check your fee balance either via the API or the frontend.
-6. Attach your claim address to the allowed chains.
-7. Claim your accumulated fees to that address.
-
-### Important note about fees
-
-By default, the partner fee is set to `0.3`. It can be increased up to `0.7`.
-
-Once a zap is built and the generated instruction is signed by the user, your fee share is credited to your fee balance.
-
-## Partner example
+1. Get an API key (frontend or support).
+2. Initialize the client with `WithPartnerAuth`.
+3. Set your fee via `UpdatePartnerPolicy` (default `0.3`, max `0.7`).
+4. Build zaps with `BuildZap`; your fee is credited when the user signs.
+5. Check accrued fees with `GetFeeBalance` — split into `free` (accrued) and
+   `pending` (pushed on-chain, claimable) buckets.
+6. Register a claim address with `AttachNewClaimAddress`.
+7. Claim with `ClaimFees` (one token) or `ClaimAllFees` (all pending on a
+   chain), then sign and broadcast the returned transaction from your claim
+   address — it must be the signer.
 
 ```go
-package main
+auth := models.PartnerAuth{PartnerID: "PARTNER_ID", APIKey: "API_KEY", Secret: "SECRET"}
+client, err := yifi.NewClient(yifi.WithPartnerAuth(auth))
+if err != nil {
+	panic(err)
+}
+ctx := context.Background()
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-
-	yifi "github.com/dev-earn/yifi-earn-sdk-go"
-	"github.com/dev-earn/yifi-earn-sdk-go/models"
-)
-
-func Partners() {
-	auth := models.PartnerAuth{
-		PartnerID: "PARTNER_ID",
-		APIKey:    "API_KEY",
-		Secret:    "SECRET",
-	}
-
-	client, err := yifi.NewClient(yifi.WithPartnerAuth(auth))
-	if err != nil {
-		panic(fmt.Sprintf("yifi new client init failed: %s", err.Error()))
-	}
-
-	// 1. Update partner policy
-    partnerFeePref := decimal.NewFromFloat(0.7)
-	err = client.UpdatePartnerPolicy(ctx, auth.PartnerID, models.Policy{
-		Fees: &models.FeePolicy{
-			CommonFee: &partnerFeePref,
-		},
-	})
-
-	policy, err := client.GetPartnerPolicy(context.Background(), auth.PartnerID)
-	if err != nil {
-		panic(fmt.Sprintf("get partner policy error: %s", err.Error()))
-	}
-	printJSON("current policy", policy)
-
-	// 2. Build zaps as a partner
-	//    The partner headers are attached automatically when partner auth is configured.
-	buildResp, err := client.BuildZap(context.Background(), models.ZapQuoteRequest{
-		StrategyID:                  "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
-		InputToken:                  "ethereum:0x0000000000000000000000000000000000000000",
-		InputAmount:                 "10000000000",
-		OutputToken:                 "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
-		Sender:                      "0x053806E0642F6A6aAFE6176bd264cbbE446C8c92", // your user, who signs
-		SlippageTolerancePercentage: decimal.NewFromFloat(1),
-	})
-	printJSON("build zap", buildResp)
-
-	// 3. Check fee balance
-	balance, err := client.GetFeeBalance(context.Background(), auth.PartnerID)
-	if err != nil {
-		panic(fmt.Sprintf("get fee balance error: %s", err.Error()))
-	}
-	printJSON("fee balance", balance)
-
-	// 4. Attach claim address
-	err = client.AttachNewClaimAddress(context.Background(), models.ClaimAddressPublic{
-		PartnerID: auth.PartnerID,
-		ChainID:   1,
-		Address:   "0x0000000000000000000000000000000000000000",
-	})
-	if err != nil {
-		panic(fmt.Sprintf("attach new claim address error: %s", err.Error()))
-	}
-
-	// 5. Claim fees
-	txInfo, err := client.ClaimFees(context.Background(), models.PartnerFeeClaimRequest{
-		PartnerID: auth.PartnerID,
-	})
-	if err != nil {
-		panic(fmt.Sprintf("claim fees error: %s", err.Error()))
-	}
-	printJSON("claim fees", txInfo)
+// Set the partner fee.
+fee := decimal.NewFromFloat(0.5)
+if err := client.UpdatePartnerPolicy(ctx, auth.PartnerID, models.Policy{
+	Fees: &models.FeePolicy{CommonFee: &fee},
+}); err != nil {
+	panic(err)
 }
 
-func printJSON(label string, v any) {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		panic(fmt.Sprintf("marshal %s error: %s", label, err.Error()))
-	}
-	fmt.Printf("\n %s \n%s\n", label, string(b))
+// Build a zap for your user to sign.
+zap, err := client.BuildZap(ctx, models.ZapQuoteRequest{
+	StrategyID:                  "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+	InputToken:                  "ethereum:0x0000000000000000000000000000000000000000", // native ETH
+	InputAmount:                 "10000000000000000",                                    // 0.01 ETH (wei)
+	OutputToken:                 "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+	Sender:                      "0xYourUserWallet", // the wallet that signs
+	SlippageTolerancePercentage: decimal.NewFromInt(1),
+})
+if err != nil {
+	panic(err)
 }
+
+// Check accrued fees, then claim.
+balance, err := client.GetFeeBalance(ctx, auth.PartnerID)
+if err != nil {
+	panic(err)
+}
+_ = balance
+_ = zap
 ```
 
-## Notes
+## Examples
 
-* Partner authentication is optional.
-* If partner auth is configured, the SDK signs partner requests automatically.
-* If partner auth is not configured, public endpoints continue to work normally.
-* Use the frontend or support to create and manage your first partner API key.
+Runnable examples live in [`examples/`](examples/), which is a **separate Go
+module** so its on-chain dependencies (go-ethereum, godotenv) don't leak into
+apps that import the SDK.
+
+```bash
+cd examples
+cp .env.example .env   # fill in your credentials / RPC / signer key
+```
+
+`examples/main.go` is a dispatcher — uncomment one scenario and run it:
+
+```bash
+go run .
+```
+
+Read-only scenarios (`Token`, `Market`, `Strategy`, `Partner`, `FeeBalance`,
+`SupportedChains`) are safe to run. Scenarios marked **MUTATING** in their doc
+comment (`UpdatePolicy`, `APIKeys`, `Zap`, `Claim`, `ClaimAll`,
+`AttachClaimAddress`) change live state or broadcast transactions — read them
+before running.
+
+### RPC configuration (multi-chain)
+
+The on-chain examples are EVM-only and work across any number of chains. Add one
+`RPC_URL_<CHAIN>` per chain you operate on to `examples/.env`; the `<CHAIN>`
+suffix is the SDK's `chain:address` prefix, upper-cased:
+
+```bash
+RPC_URL_ETHEREUM=https://eth-mainnet.your-rpc-provider/v2/your-key
+RPC_URL_ARBITRUM=https://arb-mainnet.your-rpc-provider/v2/your-key
+RPC_URL_BSC=https://bnb-mainnet.your-rpc-provider/v2/your-key
+# ...add optimism, base, polygon, etc. as needed
+
+RPC_URL=https://your-rpc-provider/v2/your-key   # optional catch-all fallback
+```
+
+Each example resolves its endpoint by chain (e.g. an Arbitrum zap reads
+`RPC_URL_ARBITRUM`), falling back to `RPC_URL`. If a chain an example needs has
+no endpoint configured, it fails fast with a message telling you which
+`RPC_URL_<CHAIN>` to set.
+
+## API reference
+
+Full docs on [pkg.go.dev](https://pkg.go.dev/github.com/dev-earn/yifi-earn-sdk-go).
+The complete surface is the `SDK` interface in [`sdk.go`](sdk.go).
+```

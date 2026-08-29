@@ -1,0 +1,15 @@
+# Secrets / local config
+.env
+examples/.env
+config.json
+
+# Editor / OS
+.vscode
+.DS_Store
+
+# Go build artifacts
+*.test
+*.out
+__debug_bin*
+examples/__debug_bin*
+examples/examples

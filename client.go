@@ -18,13 +18,15 @@ import (
 	"github.com/dev-earn/yifi-earn-sdk-go/models"
 )
 
-// Endpoints
+// API hosts. Override these only if you are pointing at a self-hosted or
+// staging deployment; NewClient chooses between them based on UseTestnet.
 var (
 	BaseAPIMainURL    = "https://core.yifi.io"
 	BaseAPITestnetURL = "https://core-dev.yifi.io"
 )
 
-// UseTestnet switch all the API endpoints from production to the testnet
+// UseTestnet routes all requests to the testnet host instead of production.
+// Set it before calling NewClient.
 var UseTestnet = false
 
 // getAPIEndpoint return the base endpoint of the Rest API according the UseTestnet flag
@@ -36,6 +38,9 @@ func getAPIEndpoint() string {
 	return BaseAPIMainURL
 }
 
+// DoReq executes req, decodes a JSON models.Response[T] on 2xx, and returns an
+// error carrying the status and (truncated) body on any non-2xx response. It is
+// exported for callers building requests manually; the SDK methods use it internally.
 func DoReq[T any](cl *http.Client, req *http.Request) (*models.Response[T], error) {
 
 	resp, err := cl.Do(req)

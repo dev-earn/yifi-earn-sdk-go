@@ -2,68 +2,47 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	"github.com/dev-earn/yifi-earn-sdk-go"
+	yifi "github.com/dev-earn/yifi-earn-sdk-go"
 	"github.com/dev-earn/yifi-earn-sdk-go/models"
 )
 
+// Market demonstrates every public market endpoint. All read-only.
 func Market() {
 	client, err := yifi.NewClient()
 	if err != nil {
-		panic(fmt.Sprintf("yifi new client init failed: %s", err.Error()))
+		panic(fmt.Sprintf("yifi new client init failed: %s", err))
 	}
+	ctx := context.Background()
 
-	// GetMarkets
-	// markets, err := client.GetMarkets(context.Background(), models.MarketsRequest{})
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get markets error: %s", err.Error()))
-	// }
+	const marketID = "ethereum:0x08c6F91e2B681FaF5e17227F2a44C307b3C1364C"
 
-	// bMarkets, err := json.MarshalIndent(markets, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal markets error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bMarkets))
-
-	// GetMarket
-	// market, err := client.GetMarket(context.Background(), "ethereum:0x08c6F91e2B681FaF5e17227F2a44C307b3C1364C")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get market error: %s", err.Error()))
-	// }
-
-	// bMarket, err := json.MarshalIndent(market, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal market error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bMarket))
-
-	// GetMarketTokenRoles
-	// roles, err := client.GetMarketTokenRoles(context.Background())
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get roles error: %s", err.Error()))
-	// }
-
-	// broles, err := json.MarshalIndent(roles, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal roles error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(broles))
-
-	// GetMarketHistoryMetrics
-	marketHistory, err := client.GetMarketHistoryMetrics(context.Background(), "ethereum:0x08c6F91e2B681FaF5e17227F2a44C307b3C1364C", models.FromTo{})
+	// GetMarkets: paginated, filterable list.
+	markets, err := client.GetMarkets(ctx, models.MarketsRequest{})
 	if err != nil {
-		panic(fmt.Sprintf("get market history error: %s", err.Error()))
+		panic(fmt.Sprintf("get markets: %s", err))
 	}
+	printJSON("markets", markets)
 
-	bMarketHistory, err := json.MarshalIndent(marketHistory, "", "  ")
+	// GetMarket: current state of a single market.
+	market, err := client.GetMarket(ctx, marketID)
 	if err != nil {
-		panic(fmt.Sprintf("marshal market history error: %s", err.Error()))
+		panic(fmt.Sprintf("get market: %s", err))
 	}
+	printJSON("market", market)
 
-	fmt.Println(string(bMarketHistory))
+	// GetMarketTokenRoles: roles a token can play in a market (supply, borrow, …).
+	roles, err := client.GetMarketTokenRoles(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("get market token roles: %s", err))
+	}
+	printJSON("market token roles", roles)
+
+	// GetMarketHistoryMetrics: historical stats over a time range.
+	history, err := client.GetMarketHistoryMetrics(ctx, marketID, models.FromTo{})
+	if err != nil {
+		panic(fmt.Sprintf("get market history: %s", err))
+	}
+	printJSON("market history", history)
 }

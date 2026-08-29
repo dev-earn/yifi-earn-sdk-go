@@ -5,126 +5,144 @@ import (
 	"encoding/json"
 	"fmt"
 
-	yifi "github.com/dev-earn/yifi-earn-sdk-go"
 	"github.com/dev-earn/yifi-earn-sdk-go/models"
 	"github.com/shopspring/decimal"
 )
 
+// Partner reads the partner's current configuration: policy and claim
+// addresses. Both are read-only calls, safe to run as-is.
 func Partner() {
-	auth := models.PartnerAuth{
-		PartnerID: "PARTNER_ID",
-		APIKey:    "API_KEY",
-		Secret:    "SECRET",
-	}
-
-	client, err := yifi.NewClient(yifi.WithPartnerAuth(auth))
-	if err != nil {
-		panic(fmt.Sprintf("yifi new client init failed: %s", err.Error()))
-	}
-
+	client, auth := partnerTestClient()
 	ctx := context.Background()
-
-	// summary, err := client.GetPartnerSummary(ctx, auth.PartnerID, models.FromTo{})
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get partner summary error: %s", err.Error()))
-	// }
-	// printJSON("partner summary", summary)
-
-	// metrics, err := client.GetPartnerMetrics(ctx, auth.PartnerID, models.FromTo{})
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get partner metrics error: %s", err.Error()))
-	// }
-	// printJSON("partner metrics", metrics)
 
 	policy, err := client.GetPartnerPolicy(ctx, auth.PartnerID)
 	if err != nil {
-		panic(fmt.Sprintf("get partner policy error: %s", err.Error()))
+		panic(fmt.Sprintf("get partner policy: %s", err))
 	}
 	printJSON("partner policy", policy)
 
-	partnerFeePref := decimal.NewFromFloat(0.7)
-	err = client.UpdatePartnerPolicy(ctx, auth.PartnerID, models.Policy{
-		Fees: &models.FeePolicy{
-			CommonFee: &partnerFeePref,
-		},
-	})
+	claimAddresses, err := client.GetAllClaimAddresses(ctx, auth.PartnerID)
 	if err != nil {
-		panic(fmt.Sprintf("update partner policy error: %s", err.Error()))
+		panic(fmt.Sprintf("get claim addresses: %s", err))
 	}
-
-	policyUPD, err := client.GetPartnerPolicy(ctx, auth.PartnerID)
-	if err != nil {
-		panic(fmt.Sprintf("get partner policy error: %s", err.Error()))
-	}
-	printJSON("partner policy", policyUPD)
-
-	// apiKeys, err := client.GetAPIKeys(ctx, auth.PartnerID)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get api keys error: %s", err.Error()))
-	// }
-	// printJSON("api keys", apiKeys)
-
-	// apiKey, err := client.CreateAPIKey(ctx, auth.PartnerID, "demo-key")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("create api key error: %s", err.Error()))
-	// }
-	// printJSON("create api key", apiKey)
-
-	// err = client.RevokeAPIKey(ctx, auth.PartnerID, "api-key-id-example")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("revoke api key error: %s", err.Error()))
-	// }
-
-	// feeBalance, err := client.GetFeeBalance(ctx, auth.PartnerID)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get fee balance error: %s", err.Error()))
-	// }
-	// printJSON("fee balance", feeBalance)
-
-	// txInfo, err := client.ClaimFees(ctx, models.PartnerFeeClaimRequest{
-	// 	PartnerID: auth.PartnerID,
-	// })
-	// if err != nil {
-	// 	panic(fmt.Sprintf("claim fees error: %s", err.Error()))
-	// }
-	// printJSON("claim fees", txInfo)
-
-	// supportedChains, err := client.GetSupportedChains(ctx)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get supported chains error: %s", err.Error()))
-	// }
-	// printJSON("supported chains", supportedChains)
-
-	// claimAddresses, err := client.GetAllClaimAddresses(ctx, auth.PartnerID)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get claim addresses error: %s", err.Error()))
-	// }
-	// printJSON("claim addresses", claimAddresses)
-
-	// err = client.AttachNewClaimAddress(ctx, models.ClaimAddressPublic{
-	// 	PartnerID: auth.PartnerID,
-	// 	ChainID:   1,
-	// 	Address:   "0x0000000000000000000000000000000000000000",
-	// })
-	// if err != nil {
-	// 	panic(fmt.Sprintf("attach new claim address error: %s", err.Error()))
-	// }
-
-	// err = client.UpdateExistingClaimAddress(ctx, models.ClaimAddress{
-	// 	PartnerID: auth.PartnerID,
-	// 	ChainID:   1,
-	// 	Address:   "0x0000000000000000000000000000000000000000",
-	// })
-	// if err != nil {
-	// 	panic(fmt.Sprintf("update existing claim address error: %s", err.Error()))
-	// }
-
+	printJSON("claim addresses", claimAddresses)
 }
 
+// PartnerStats fetches the partner's aggregate summary and per-strategy
+// metrics. An empty FromTo requests the default time range. Read-only.
+func PartnerStats() {
+	client, auth := partnerTestClient()
+	ctx := context.Background()
+
+	summary, err := client.GetPartnerSummary(ctx, auth.PartnerID, models.FromTo{})
+	if err != nil {
+		panic(fmt.Sprintf("get partner summary: %s", err))
+	}
+	printJSON("partner summary", summary)
+
+	metrics, err := client.GetPartnerMetrics(ctx, auth.PartnerID, models.FromTo{})
+	if err != nil {
+		panic(fmt.Sprintf("get partner metrics: %s", err))
+	}
+	printJSON("partner metrics", metrics)
+}
+
+// UpdatePolicy sets the partner's common fee to 0.3% and reads it back.
+// MUTATING: this overwrites the live partner policy.
+func UpdatePolicy() {
+	client, auth := partnerTestClient()
+	ctx := context.Background()
+
+	commonFee := decimal.NewFromFloat(0.3) // allowed range: 0 to 0.7
+	if err := client.UpdatePartnerPolicy(ctx, auth.PartnerID, models.Policy{
+		Fees: &models.FeePolicy{CommonFee: &commonFee},
+	}); err != nil {
+		panic(fmt.Sprintf("update partner policy: %s", err))
+	}
+
+	policy, err := client.GetPartnerPolicy(ctx, auth.PartnerID)
+	if err != nil {
+		panic(fmt.Sprintf("get partner policy: %s", err))
+	}
+	printJSON("updated policy", policy)
+}
+
+// APIKeys lists the partner's keys, then creates and revokes a demo key.
+// MUTATING: creating/revoking changes live partner credentials. The secret is
+// only returned once, at creation.
+func APIKeys() {
+	client, auth := partnerTestClient()
+	ctx := context.Background()
+
+	keys, err := client.GetAPIKeys(ctx, auth.PartnerID)
+	if err != nil {
+		panic(fmt.Sprintf("get api keys: %s", err))
+	}
+	printJSON("api keys", keys)
+
+	created, err := client.CreateAPIKey(ctx, auth.PartnerID, "demo-key")
+	if err != nil {
+		panic(fmt.Sprintf("create api key: %s", err))
+	}
+	printJSON("created api key", created)
+
+	if err := client.RevokeAPIKey(ctx, auth.PartnerID, created.APIKey.APIKey); err != nil {
+		panic(fmt.Sprintf("revoke api key: %s", err))
+	}
+	fmt.Println("demo api key revoked")
+}
+
+// SupportedChains lists the chains on which partner fees can be claimed.
+// Read-only.
+func SupportedChains() {
+	client, _ := partnerTestClient()
+	ctx := context.Background()
+
+	chains, err := client.GetSupportedChains(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("get supported chains: %s", err))
+	}
+	printJSON("supported chains", chains)
+}
+
+// AttachClaimAddress registers a new fee claim address on ethereum (chain 1).
+// MUTATING.
+func AttachClaimAddress() {
+	client, auth := partnerTestClient()
+	ctx := context.Background()
+
+	if err := client.AttachNewClaimAddress(ctx, models.ClaimAddressPublic{
+		PartnerID: auth.PartnerID,
+		ChainID:   1,
+		Address:   "0x6b81BBBB084480CC4E3A94E1807c700991B035CF",
+	}); err != nil {
+		panic(fmt.Sprintf("attach claim address: %s", err))
+	}
+	fmt.Println("claim address attached")
+}
+
+// UpdateClaimAddress renames an existing claim address. MUTATING.
+func UpdateClaimAddress() {
+	client, auth := partnerTestClient()
+	ctx := context.Background()
+
+	name := "main"
+	if err := client.UpdateExistingClaimAddress(ctx, models.ClaimAddress{
+		PartnerID: auth.PartnerID,
+		ChainID:   1,
+		Address:   "0x6b81BBBB084480CC4E3A94E1807c700991B035CF",
+		Name:      &name,
+	}); err != nil {
+		panic(fmt.Sprintf("update claim address: %s", err))
+	}
+	fmt.Println("claim address updated")
+}
+
+// printJSON pretty-prints any value under a label; used across the examples.
 func printJSON(label string, v any) {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		panic(fmt.Sprintf("marshal %s error: %s", label, err.Error()))
+		panic(fmt.Sprintf("marshal %s: %s", label, err))
 	}
 	fmt.Printf("\n %s \n%s\n", label, string(b))
 }

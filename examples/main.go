@@ -8,5 +8,10 @@ func main() {
 	// Token()
 	// Market()
 	// Strategy()
-	Partner()
+	// Partner()
+	// Zap() // create + sign a zap (accrues partner fees)
+	// Approve() // approve router
+	FeeBalance() // check partner fee balance
+	// Claim() // claim one token + sign (fires the "out" webhook)
+	// ClaimAll() // claim all pending tokens on the chain + sign
 }

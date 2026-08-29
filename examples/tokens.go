@@ -2,95 +2,63 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	"github.com/dev-earn/yifi-earn-sdk-go"
+	yifi "github.com/dev-earn/yifi-earn-sdk-go"
+	"github.com/dev-earn/yifi-earn-sdk-go/models"
 )
 
+// Token demonstrates every public token endpoint. All are read-only and need
+// no partner auth, so the whole function is safe to run as-is.
 func Token() {
 	client, err := yifi.NewClient()
 	if err != nil {
-		panic(fmt.Sprintf("yifi new client init failed: %s", err.Error()))
+		panic(fmt.Sprintf("yifi new client init failed: %s", err))
 	}
+	ctx := context.Background()
 
-	// GetToken
-	// token, err := client.GetToken(context.Background(), "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get token error: %s", err.Error()))
-	// }
+	// WETH on ethereum, as a "chain:address" token ID.
+	const wethID = "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
 
-	// b, err := json.MarshalIndent(token, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal token error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(b))
-
-	// GetTokens
-	// tokens, err := client.GetTokens(context.Background(), models.TokensRequest{
-	// 	Chains: []string{"ethereum"},
-	// })
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get token error: %s", err.Error()))
-	// }
-
-	// bTokens, err := json.MarshalIndent(tokens, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal token error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bTokens))
-
-	// GetTokenHistoryMetrics
-	// tokenHistory, err := client.GetTokenHistoryMetrics(context.Background(), "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", models.TokenHistoryMetricsRequest{})
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get token history error: %s", err.Error()))
-	// }
-	// bTokenHistory, err := json.MarshalIndent(tokenHistory, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal token error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bTokenHistory))
-
-	// GetTokenGroup
-	// tokenGroup, err := client.GetTokenGroup(context.Background(), "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get token group error: %s", err.Error()))
-	// }
-
-	// bTokenGroup, err := json.MarshalIndent(tokenGroup, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal token group error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bTokenGroup))
-
-	// GetTokenTags
-	// tokenTags, err := client.GetTokenTags(context.Background())
-	// if err != nil {
-	// 	panic(fmt.Sprintf("get token tags error: %s", err.Error()))
-	// }
-
-	// bTokenTags, err := json.MarshalIndent(tokenTags, "", "  ")
-	// if err != nil {
-	// 	panic(fmt.Sprintf("marshal token group error: %s", err.Error()))
-	// }
-
-	// fmt.Println(string(bTokenTags))
-
-	// GetTokenGroups
-	tokenGroups, err := client.GetTokenGroups(context.Background())
+	// GetToken: current state of a single token.
+	token, err := client.GetToken(ctx, wethID)
 	if err != nil {
-		panic(fmt.Sprintf("get token tags error: %s", err.Error()))
+		panic(fmt.Sprintf("get token: %s", err))
 	}
+	printJSON("token", token)
 
-	bTokenGroups, err := json.MarshalIndent(tokenGroups, "", "  ")
+	// GetTokens: paginated, filterable list.
+	tokens, err := client.GetTokens(ctx, models.TokensRequest{Chains: []string{"ethereum"}})
 	if err != nil {
-		panic(fmt.Sprintf("marshal token group error: %s", err.Error()))
+		panic(fmt.Sprintf("get tokens: %s", err))
 	}
+	printJSON("tokens", tokens)
 
-	fmt.Println(string(bTokenGroups))
+	// GetTokenHistoryMetrics: historical stats over a time range (empty = default).
+	history, err := client.GetTokenHistoryMetrics(ctx, wethID, models.FromTo{})
+	if err != nil {
+		panic(fmt.Sprintf("get token history: %s", err))
+	}
+	printJSON("token history", history)
 
+	// GetTokenGroup: the group a token belongs to (e.g. bridged variants).
+	group, err := client.GetTokenGroup(ctx, wethID)
+	if err != nil {
+		panic(fmt.Sprintf("get token group: %s", err))
+	}
+	printJSON("token group", group)
+
+	// GetTokenTags: all available tags.
+	tags, err := client.GetTokenTags(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("get token tags: %s", err))
+	}
+	printJSON("token tags", tags)
+
+	// GetTokenGroups: all groups.
+	groups, err := client.GetTokenGroups(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("get token groups: %s", err))
+	}
+	printJSON("token groups", groups)
 }

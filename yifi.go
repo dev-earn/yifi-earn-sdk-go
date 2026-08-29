@@ -13,8 +13,11 @@ import (
 
 var _ SDK = (*Client)(nil)
 
+// Option configures a Client in NewClient.
 type Option func(*Client)
 
+// WithHTTPClient sets a custom *http.Client (timeouts, transport, proxy).
+// The default has a 30s timeout. A nil client is ignored.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) {
 		if hc != nil {
@@ -23,12 +26,15 @@ func WithHTTPClient(hc *http.Client) Option {
 	}
 }
 
+// WithBasePath overrides the API base path (default "/api/v1"). Rarely needed.
 func WithBasePath(basePath string) Option {
 	return func(c *Client) {
 		c.basePath = normalizeBasePath(basePath)
 	}
 }
 
+// WithPartnerAuth attaches partner credentials so the client can call the
+// authenticated partner endpoints. Without it, those calls are rejected.
 func WithPartnerAuth(auth models.PartnerAuth) Option {
 	return func(c *Client) {
 		c.partnerAuth = &models.PartnerAuth{
@@ -39,6 +45,8 @@ func WithPartnerAuth(auth models.PartnerAuth) Option {
 	}
 }
 
+// Client is the concrete SDK implementation. Create it with NewClient; it is
+// safe for concurrent use.
 type Client struct {
 	baseURL     *url.URL
 	basePath    string
@@ -46,6 +54,8 @@ type Client struct {
 	partnerAuth *models.PartnerAuth
 }
 
+// NewClient builds a Client. It reads UseTestnet to pick the API host, applies
+// the given options, and returns an error if the resolved endpoint is invalid.
 func NewClient(opts ...Option) (SDK, error) {
 	u, err := url.Parse(strings.TrimSpace(getAPIEndpoint()))
 	if err != nil {
@@ -638,6 +648,24 @@ func (c *Client) GetFeeBalance(ctx context.Context, partnerID string) (models.Ba
 
 func (c *Client) ClaimFees(ctx context.Context, reqBody models.PartnerFeeClaimRequest) (models.TxInfo, error) {
 	req, err := c.do(ctx, http.MethodPost, "/partners/"+url.PathEscape(reqBody.PartnerID)+"/fees/claim", nil, reqBody)
+	if err != nil {
+		return models.TxInfo{}, err
+	}
+
+	res, err := DoReq[models.TxInfo](c.httpClient, req)
+	if err != nil {
+		return models.TxInfo{}, err
+	}
+
+	if res.Data == nil {
+		return models.TxInfo{}, nil
+	}
+
+	return *res.Data, nil
+}
+
+func (c *Client) ClaimAllFees(ctx context.Context, reqBody models.PartnerFeeClaimAllRequest) (models.TxInfo, error) {
+	req, err := c.do(ctx, http.MethodPost, "/partners/"+url.PathEscape(reqBody.PartnerID)+"/fees/claim-all", nil, reqBody)
 	if err != nil {
 		return models.TxInfo{}, err
 	}

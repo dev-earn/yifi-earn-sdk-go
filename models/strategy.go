@@ -1,6 +1,7 @@
 package models
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -84,7 +85,61 @@ type ExecutionConfig struct {
 type Metrics struct {
 	AnnualRate decimal.Decimal `json:"annual_rate"`
 	TvlUsd     decimal.Decimal `json:"tvl_usd"`
-	Timestamp  time.Time       `json:"timestamp"`
+	// Meta carries the point-in-time reserve snapshot for lending strategies
+	// (e.g. Aave). It is populated on the history endpoint for lending
+	// strategies and omitted otherwise, so it is nil for non-lending metrics.
+	Meta      *MetaLending `json:"meta,omitempty"`
+	Timestamp time.Time    `json:"timestamp"`
+}
+
+// MetaLending is the lending-strategy meta: a single Aave v3 reserve snapshot
+// (rates / config / interest-rate model) keyed by network, chain, underlying
+// and aToken.
+type MetaLending struct {
+	Network    string          `json:"network"`
+	ChainID    int             `json:"chain_id"`
+	Underlying string          `json:"underlying"`
+	AToken     string          `json:"atoken"`
+	APYTVL     APYTVLMeta      `json:"apy_tvl"`
+	Metadata   ReserveMetadata `json:"metadata"`
+	IRM        IRMMeta         `json:"irm"`
+}
+
+// APYTVLMeta holds the rate and liquidity snapshot for a reserve.
+type APYTVLMeta struct {
+	SupplyAPRPct      float64  `json:"supply_apr_pct"`
+	SupplyAPYPct      float64  `json:"supply_apy_pct"`
+	VarBorrowAPRPct   float64  `json:"var_borrow_apr_pct"`
+	VarBorrowAPYPct   float64  `json:"var_borrow_apy_pct"`
+	UtilizationPct    float64  `json:"utilization_pct"`
+	TVLNative         float64  `json:"tvl_native"`
+	PriceUSD          float64  `json:"price_usd"`
+	LiquidityIndexRay *big.Int `json:"liquidity_index_ray"`
+	UpdatedAtTS       int64    `json:"updated_at_ts"`
+	UpdatedAtBlock    int64    `json:"updated_at_block"`
+}
+
+// ReserveMetadata is the reserve configuration in human-readable units.
+type ReserveMetadata struct {
+	Decimals             int     `json:"decimals"`
+	LTVPct               float64 `json:"ltv_pct"`
+	LiquidationThreshold float64 `json:"liquidation_threshold"`
+	LiquidationBonus     float64 `json:"liquidation_bonus"`
+	ReserveFactorPct     float64 `json:"reserve_factor_pct"`
+	UseAsCollateral      bool    `json:"use_as_collateral"`
+	BorrowingEnabled     bool    `json:"borrowing_enabled"`
+	StableBorrowEnabled  bool    `json:"stable_borrow_enabled"`
+	IsActive             bool    `json:"is_active"`
+	IsFrozen             bool    `json:"is_frozen"`
+}
+
+// IRMMeta is the interest-rate-model snapshot.
+type IRMMeta struct {
+	BaseRatePct   float64 `json:"base_rate_pct"`
+	Slope1Pct     float64 `json:"slope1_pct"`
+	Slope2Pct     float64 `json:"slope2_pct"`
+	UOptimalPct   float64 `json:"u_optimal_pct"`
+	UMaxExcessPct float64 `json:"u_max_excess_pct"`
 }
 
 type Risk struct {

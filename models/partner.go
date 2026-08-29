@@ -65,10 +65,20 @@ type CreateAPIKeyRequest struct {
 	Name string `json:"name"`
 }
 
+// TokenAmount splits a token's fee balance into its buckets.
+type TokenAmount struct {
+	// Total = Free + Pending.
+	Total decimal.Decimal `json:"total"`
+	// Free is accrued but not yet pushed to the TokenDistributor.
+	Free decimal.Decimal `json:"free"`
+	// Pending is pushed to the TokenDistributor and claimable on-chain.
+	Pending decimal.Decimal `json:"pending"`
+}
+
 type TokenBalance struct {
-	TokenID string          `json:"token_id"`
-	ChainID int             `json:"chain_id"`
-	Amount  decimal.Decimal `json:"amount"`
+	TokenID string      `json:"token_id"`
+	ChainID int         `json:"chain_id"`
+	Amount  TokenAmount `json:"amount"`
 }
 
 type Balance struct {
@@ -89,6 +99,13 @@ type PartnerFeeClaimRequest struct {
 	Slippage        decimal.Decimal `json:"slippage"`
 }
 
+// PartnerFeeClaimAllRequest claims every token's whole fee balance on a chain
+// (claimAll). PartnerID goes in the path; ChainID is the chain name, e.g. "bsc".
+type PartnerFeeClaimAllRequest struct {
+	PartnerID string `json:"partner_id"`
+	ChainID   string `json:"chain_id"`
+}
+
 type TxInfo struct {
 	ClaimID    string          `json:"claim_id"`
 	TokenID    string          `json:"token_id"`
@@ -96,6 +113,11 @@ type TxInfo struct {
 	To         string          `json:"to"`
 	TxHash     string          `json:"tx_hash"`
 	AmountSent decimal.Decimal `json:"amount_sent"`
+
+	// Data is the unsigned claim()/claimAll() calldata the partner signs from
+	// From to To (value 0) to pull the fees out of the distributor.
+	Data    string `json:"data,omitempty"`
+	ChainID int64  `json:"chain_id,omitempty"`
 }
 
 type ClaimAddress struct {
