@@ -72,7 +72,7 @@ type MarketCurrentResponse struct {
 	AnnualRate decimal.Decimal `json:"annual_rate"`
 	TVL        decimal.Decimal `json:"tvl_usd"`
 
-	Meta Meta `json:"meta"`
+	Meta any `json:"meta"`
 }
 
 type MarketHistoryResponse struct {

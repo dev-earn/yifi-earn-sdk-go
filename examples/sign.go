@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func signAndSend(ctx context.Context, rpcURL, privateKeyHex string, sig models.Signature) (string, error) {
@@ -61,20 +63,45 @@ func signAndSend(ctx context.Context, rpcURL, privateKeyHex string, sig models.S
 		return "", fmt.Errorf("get latest header: %w", err)
 	}
 
-	// maxFeePerGas = 2 * baseFee + tip (EIP-1559)
-	maxFee := new(big.Int).Add(new(big.Int).Mul(head.BaseFee, big.NewInt(2)), tip)
-
-	gasLimit, err := ethClient.EstimateGas(ctx, ethereum.CallMsg{
-		From:  fromAddr,
-		To:    &toAddr,
-		Value: value,
-		Data:  data,
-	})
-	if err != nil {
-		return "", fmt.Errorf("estimate gas: %w", err)
+	// BSC can have a zero base fee with a nonzero priority tip.
+	maxFee := new(big.Int).Set(head.BaseFee)
+	if maxFee.Cmp(tip) < 0 {
+		maxFee = new(big.Int).Set(tip)
 	}
-	// +20% buffer
-	gasLimit = gasLimit * 12 / 10
+
+	var gasLimit uint64
+	if sig.GasLimit != "" {
+		limit := new(big.Int)
+		base := 10
+		raw := sig.GasLimit
+		if strings.HasPrefix(raw, "0x") {
+			base = 16
+			raw = strings.TrimPrefix(raw, "0x")
+		}
+		if _, ok := limit.SetString(raw, base); !ok {
+			return "", fmt.Errorf("invalid engine gas limit: %q", sig.GasLimit)
+		}
+		gasLimit = limit.Uint64()
+	} else {
+		gasLimit, err = ethClient.EstimateGas(ctx, ethereum.CallMsg{
+			From:     fromAddr,
+			To:       &toAddr,
+			Value:    value,
+			Data:     data,
+			GasPrice: maxFee,
+		})
+		if err != nil {
+			var dataErr rpc.DataError
+			if errors.As(err, &dataErr) {
+				return "", fmt.Errorf("estimate gas: %w (data: %v)", err, dataErr.ErrorData())
+			}
+			return "", fmt.Errorf("estimate gas: %w", err)
+		}
+	}
+	if sig.GasLimit == "" {
+		// +20% buffer when estimating locally.
+		gasLimit = gasLimit * 12 / 10
+	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,

@@ -50,18 +50,24 @@ func Zap() {
 	// fmt.Println("claim address updated")
 
 	// Arbitrum: USDT -> aArbUSDT
-	sig, err := testClient.BuildZap(ctx, models.ZapQuoteRequest{
+	req := models.ZapQuoteRequest{
 		StrategyID:                  "arbitrum:0x6ab707aca953edaefbc4fd23ba73294241490620",
 		Sender:                      walletAddr(),
 		InputToken:                  "arbitrum:0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", // USDT (6 decimals)
 		InputAmount:                 "50000",                                               // 0.05 USDT
 		OutputToken:                 "arbitrum:0x6ab707aca953edaefbc4fd23ba73294241490620", // aArbUSDT
 		SlippageTolerancePercentage: decimal.NewFromInt(3),
-	})
+	}
+	quote, err := testClient.QuoteZap(ctx, req)
+	if err != nil {
+		panic(fmt.Sprintf("quote zap: %s", err))
+	}
+	req.OrderID = quote.OrderID
+	sig, err := testClient.BuildZap(ctx, req)
 	if err != nil {
 		panic(fmt.Sprintf("build zap: %s", err))
 	}
-	printJSON("zap quote", sig)
+	printJSON("zap build", sig)
 
 	txHash, err := signAndSend(ctx, rpcURL, privateKey, sig)
 	if err != nil {
@@ -167,9 +173,22 @@ func broadcastClaim(ctx context.Context, tx models.TxInfo) {
 
 	// The signer of the claim tx MUST be the partner's claim address.
 	privateKey := privateKey()
-	rpcURL := rpcURL("bsc")
+	chain := map[int64]string{
+		1:     "ethereum",
+		56:    "bsc",
+		42161: "arbitrum",
+		10:    "optimism",
+		137:   "polygon",
+		8453:  "base",
+		43114: "avalanche",
+		999:   "hyperevm",
+		146:   "sonic",
+	}[tx.ChainID]
+	if chain == "" {
+		panic(fmt.Sprintf("unsupported claim chain id: %d", tx.ChainID))
+	}
 
-	txHash, err := signAndSend(ctx, rpcURL, privateKey, models.Signature{
+	txHash, err := signAndSend(ctx, rpcURL(chain), privateKey, models.Signature{
 		From:  tx.From,
 		To:    tx.To,
 		Data:  tx.Data,
@@ -178,5 +197,5 @@ func broadcastClaim(ctx context.Context, tx models.TxInfo) {
 	if err != nil {
 		panic(fmt.Sprintf("sign and send claim: %s", err))
 	}
-	fmt.Printf("claim tx sent: https://bscscan.com/tx/%s\n", txHash)
+	fmt.Printf("claim tx sent on %s: %s\n", chain, txHash)
 }

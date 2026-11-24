@@ -13,23 +13,24 @@ type MetricsPartner struct {
 }
 
 type Metric struct {
-	StrategyID     string          `json:"strategy_id"`
-	UsersCount     int64           `json:"users_count"`
-	DepositsUSD    decimal.Decimal `json:"deposits_usd"`
-	WithdrawalsUSD decimal.Decimal `json:"withdrawals_usd"`
-	FeesEarnedUSD  decimal.Decimal `json:"fees_earned_usd"`
+	StrategyID        string          `json:"strategy_id"`
+	UsersCount        int64           `json:"users_count"`
+	TransactionsCount int64           `json:"transactions_count"`
+	DepositsUSD       decimal.Decimal `json:"deposits_usd"`
+	WithdrawalsUSD    decimal.Decimal `json:"withdrawals_usd"`
+	FeesEarnedUSD     decimal.Decimal `json:"fees_earned_usd"`
 }
 
 type Policy struct {
-	AllowStrategyIds   []string         `json:"allow_strategy_ids,omitempty"`
-	DenyStrategyIds    []string         `json:"deny_strategy_ids,omitempty"`
-	AllowedChainIds    []string         `json:"allowed_chain_ids,omitempty"`
-	AllowedCategoryIds []string         `json:"allowed_category_ids,omitempty"`
-	MinTvlUsd          *decimal.Decimal `json:"min_tvl_usd,omitempty"`
-	MinRate            *decimal.Decimal `json:"min_rate,omitempty"`
-	RateType           string           `json:"rate_type,omitempty"`
-	MaxRiskLevel       string           `json:"max_risk_level,omitempty"`
-	UpdatedAt          *time.Time       `json:"updated_at,omitempty"`
+	ChainIDs         []string         `json:"chain_ids"`
+	CategoryIDs      []string         `json:"category_ids"`
+	MinTVLUsd        *decimal.Decimal `json:"minTvlUsd"`
+	MinAPR           *decimal.Decimal `json:"minApr"`
+	RateFormat       string           `json:"rate_format"`
+	MaxRiskScore     *int             `json:"maxRiskScore"`
+	AllowStrategyIDs []string         `json:"allow_strategy_ids"`
+	DenyStrategyIDs  []string         `json:"deny_strategy_ids"`
+	UpdatedAt        *time.Time       `json:"updated_at"`
 
 	Fees *FeePolicy `json:"fees_policies,omitempty"`
 }
@@ -76,34 +77,40 @@ type TokenAmount struct {
 }
 
 type TokenBalance struct {
-	TokenID string      `json:"token_id"`
-	ChainID int         `json:"chain_id"`
-	Amount  TokenAmount `json:"amount"`
+	TokenID      string          `json:"token_id"`
+	ChainID      int             `json:"chain_id"`
+	Symbol       string          `json:"symbol"`
+	Decimals     int32           `json:"decimals"`
+	IsNative     bool            `json:"is_native"`
+	IsWrapped    bool            `json:"is_wrapped"`
+	Amount       TokenAmount     `json:"amount"`
+	AmountUSD    decimal.Decimal `json:"amount_usd"`
+	ClaimableUSD decimal.Decimal `json:"claimable_usd"`
+	PendingUSD   decimal.Decimal `json:"pending_usd"`
 }
 
 type Balance struct {
 	PartnerID    string          `json:"partner_id"`
-	AvailableUsd decimal.Decimal `json:"available_usd"`
+	ClaimableUsd decimal.Decimal `json:"claimable_usd"`
+	PendingUsd   decimal.Decimal `json:"pending_usd"`
+	TotalUsd     decimal.Decimal `json:"total_usd"`
 	Tokens       []TokenBalance  `json:"tokens"`
 	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 type PartnerFeeClaimRequest struct {
-	PartnerID       string          `json:"partner_id"`
-	TokenID         string          `json:"token_id"`
-	IsTokenNative   bool            `json:"is_token_native"`
-	ChainID         string          `json:"chain_id"`
-	ClaimAddress    string          `json:"claim_address"`
-	AmountRequested decimal.Decimal `json:"amount_requested"`
-	GasLimit        decimal.Decimal `json:"gas_limit"`
-	Slippage        decimal.Decimal `json:"slippage"`
+	PartnerID    string `json:"partner_id"`
+	TokenID      string `json:"token_id"`
+	ChainID      string `json:"chain_id"`
+	ClaimAddress string `json:"claim_address"`
 }
 
 // PartnerFeeClaimAllRequest claims every token's whole fee balance on a chain
 // (claimAll). PartnerID goes in the path; ChainID is the chain name, e.g. "bsc".
 type PartnerFeeClaimAllRequest struct {
-	PartnerID string `json:"partner_id"`
-	ChainID   string `json:"chain_id"`
+	PartnerID    string `json:"partner_id"`
+	ChainID      string `json:"chain_id"`
+	ClaimAddress string `json:"claim_address,omitempty"`
 }
 
 type TxInfo struct {
@@ -116,8 +123,16 @@ type TxInfo struct {
 
 	// Data is the unsigned claim()/claimAll() calldata the partner signs from
 	// From to To (value 0) to pull the fees out of the distributor.
-	Data    string `json:"data,omitempty"`
-	ChainID int64  `json:"chain_id,omitempty"`
+	Data    string          `json:"data,omitempty"`
+	ChainID int64           `json:"chain_id,omitempty"`
+	Value   decimal.Decimal `json:"value"`
+}
+
+type PartnerChain struct {
+	ChainID     int    `json:"chain_id"`
+	ChainName   string `json:"chain_name"`
+	Distributor string `json:"distributor,omitempty"`
+	IsEVM       bool   `json:"is_evm,omitempty"`
 }
 
 type ClaimAddress struct {
@@ -125,6 +140,7 @@ type ClaimAddress struct {
 	ChainID   int       `json:"chain_id"`
 	Address   string    `json:"address"`
 	Name      *string   `json:"name,omitempty"`
+	TOTPCode  string    `json:"totp_code,omitempty"`
 	Status    bool      `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -135,4 +151,5 @@ type ClaimAddressPublic struct {
 	ChainID   int     `json:"chain_id"`
 	Address   string  `json:"address"`
 	Name      *string `json:"name"`
+	TOTPCode  string  `json:"totp_code,omitempty"`
 }

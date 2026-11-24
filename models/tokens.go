@@ -3,12 +3,14 @@ package models
 import "time"
 
 type TokensRequest struct {
-	Search string
-	Chains []string
-	Tags   []string
-	Group  string
-	Limit  int64
-	Offset *int64
+	Search        string
+	Chains        []string
+	Tags          []string
+	Group         string
+	SortBy        string
+	SortDirection string
+	Limit         int64
+	Offset        *int64
 }
 
 type GetTokensResponse struct {

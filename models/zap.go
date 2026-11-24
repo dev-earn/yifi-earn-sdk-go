@@ -20,6 +20,39 @@ type ZapQuoteRequest struct {
 	// SlippageTolerancePercentage is the max acceptable slippage, in percent
 	// (e.g. 1 = 1%). The zap reverts if exceeded.
 	SlippageTolerancePercentage decimal.Decimal `json:"slippage_tolerance_percentage"`
+	// Engine optionally selects a strategy's declared fallback routing engine.
+	Engine string `json:"engine,omitempty"`
+	// OrderID is required by the current API and links build to a prior QuoteZap.
+	OrderID string `json:"order_id,omitempty"`
+}
+
+// ZapQuoteResponse is the preview returned by QuoteZap. Amounts use the output
+// token's smallest unit.
+type ZapQuoteResponse struct {
+	OrderID                  string          `json:"order_id"`
+	ExpiresIn                int64           `json:"expires_in"`
+	MinOutputAmount          string          `json:"min_output_amount"`
+	MinOutputAmountUsd       float64         `json:"min_output_amount_usd"`
+	SlippageTolerancePercent decimal.Decimal `json:"slippage_tolerance_percentage"`
+	OutputToken              string          `json:"output_token"`
+	OutputAmount             string          `json:"output_amount"`
+	OutputAmountUsd          float64         `json:"output_amount_usd"`
+	FeeToken                 string          `json:"fee_token"`
+	FeeAmount                string          `json:"fee_amount"`
+	FeeAmountUsd             float64         `json:"fee_amount_usd"`
+	Steps                    []string        `json:"steps"`
+	Engine                   string          `json:"engine"`
+	RouteTool                string          `json:"engine_route_tool,omitempty"`
+	ApprovalAddress          string          `json:"approval_address"`
+	ApprovalRequired         bool            `json:"approval_required,omitempty"`
+	GasEstimate              *GasEstimate    `json:"gas_estimate,omitempty"`
+	FeeRecipient             string          `json:"fee_recipient"`
+}
+
+type GasEstimate struct {
+	Amount    string  `json:"amount"`
+	Token     string  `json:"token"`
+	AmountUSD float64 `json:"amount_usd,omitempty"`
 }
 
 // Signature is an unsigned EVM transaction returned by BuildZap (and the fee
@@ -36,4 +69,14 @@ type Signature struct {
 	To string `json:"to"`
 	// Value is the native coin to attach, as a decimal wei string ("0" if none).
 	Value string `json:"value"`
+	// Engine is the routing engine that produced the frozen quote.
+	Engine string `json:"engine,omitempty"`
+	// ApprovalAddress is the spender required for ERC-20 inputs.
+	ApprovalAddress string `json:"approval_address,omitempty"`
+	// OutputAmount and MinOutputAmount are taken from the same frozen quote.
+	OutputAmount    string `json:"output_amount,omitempty"`
+	MinOutputAmount string `json:"min_output_amount,omitempty"`
+	// GasLimit and ChainID are supplied by engines that simulate the route.
+	GasLimit string `json:"gasLimit,omitempty"`
+	ChainID  string `json:"chainId,omitempty"`
 }

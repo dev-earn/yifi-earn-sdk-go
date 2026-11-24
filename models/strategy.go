@@ -17,10 +17,12 @@ type StrategySearch struct {
 	Group       string   `json:"group"`
 	Status      *Status  `json:"status"`
 
-	MinTVLUsd *decimal.Decimal `json:"min_tvl_usd,omitempty"`
-	MaxTVLUsd *decimal.Decimal `json:"max_tvl_usd,omitempty"`
-	MinAPR    *decimal.Decimal `json:"min_apr,omitempty"`
-	MaxAPR    *decimal.Decimal `json:"max_apr,omitempty"`
+	MinTVLUsd    *decimal.Decimal `json:"min_tvl_usd,omitempty"`
+	MaxTVLUsd    *decimal.Decimal `json:"max_tvl_usd,omitempty"`
+	MinAPR       *decimal.Decimal `json:"min_apr,omitempty"`
+	MaxAPR       *decimal.Decimal `json:"max_apr,omitempty"`
+	MaxRiskScore *int             `json:"max_risk_score,omitempty"`
+	Exclude      bool             `json:"exclude"`
 
 	SortBy        string `json:"sort_by,omitempty"`        // updatedAt|createdAt|apr|apy|tvlUsd
 	SortDirection string `json:"sort_direction,omitempty"` // asc/desc
@@ -40,9 +42,12 @@ type StrategyResponse struct {
 	ChainIDs        []Chain          `json:"chain_ids"`
 	InputTokens     []TokenAddress   `json:"input_tokens"`
 	OutputTokens    []TokenAddress   `json:"output_tokens"`
+	MarketsIDs      []string         `json:"market_ids"`
 	Status          string           `json:"status"`
 	Limits          Limits           `json:"limits"`
 	RoutingEngine   string           `json:"routing_engine"`
+	DefaultEngine   string           `json:"default_engine"`
+	FallbackEngines []string         `json:"fallback_engines"`
 	Fees            Fees             `json:"fee_breakdown"`
 	ExecutionConfig *ExecutionConfig `json:"execution_config,omitempty"`
 	Metrics         Metrics          `json:"metrics"`
@@ -59,8 +64,11 @@ type StrategiesResponse struct {
 	UpdatedAt    int64          `json:"updated_at"`
 	InputTokens  []TokenAddress `json:"input_tokens"`
 	OutputTokens []TokenAddress `json:"output_tokens"`
-	ChainIDs     []Chain        `json:"chain_ids"` //
+	ChainIDs     []Chain        `json:"chain_ids"`
 	CategoryIDs  []string       `json:"category_ids"`
+	Platforms    []Platform     `json:"platforms"`
+	RateFormat   RateFormat     `json:"rate_format"`
+	Fees         Fees           `json:"fee_breakdown"`
 	Metrics      Metrics        `json:"metrics"`
 	Risk         Risk           `json:"risk"`
 }

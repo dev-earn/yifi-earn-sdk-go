@@ -74,6 +74,9 @@ func DoReq[T any](cl *http.Client, req *http.Request) (*models.Response[T], erro
 	if err := json.Unmarshal(respBody, &out); err != nil {
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
+	if !out.Success {
+		return nil, fmt.Errorf("api error %s: %s", out.Code, out.Message)
+	}
 
 	return &out, nil
 }

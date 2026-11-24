@@ -69,11 +69,16 @@ type SDK interface {
 
 	// --- Zap & wallet ---
 
-	// BuildZap returns an unsigned transaction (Signature) that swaps and deposits
-	// InputToken into a strategy. Sign and broadcast it yourself; see examples/zap.go.
+	// QuoteZap freezes a quote and its transaction for one minute.
+	QuoteZap(ctx context.Context, quote models.ZapQuoteRequest) (models.ZapQuoteResponse, error)
+	// BuildZap returns the frozen unsigned transaction for quote.OrderID.
 	BuildZap(ctx context.Context, quote models.ZapQuoteRequest) (models.Signature, error)
+	// GetTxInfo returns execution information by the quote/build order id.
+	GetTxInfo(ctx context.Context, orderID string) (models.WalletTxResponse, error)
 	// GetWalletTransactions returns the yifi-tracked transactions for a wallet address.
 	GetWalletTransactions(ctx context.Context, walletID string) ([]models.WalletTx, error)
+	// GetWalletTransaction returns one yifi-tracked transaction by wallet and order id.
+	GetWalletTransaction(ctx context.Context, walletID, orderID string) (models.WalletTxResponse, error)
 
 	// --- Partner (require WithPartnerAuth) ---
 
@@ -81,6 +86,10 @@ type SDK interface {
 	GetPartnerSummary(ctx context.Context, partnerID string, req models.FromTo) (models.Summary, error)
 	// GetPartnerMetrics returns per-strategy partner metrics over a time range.
 	GetPartnerMetrics(ctx context.Context, partnerID string, req models.FromTo) (models.MetricsPartner, error)
+	// GetPartnerTransactions returns attributed user transactions, optionally filtered by hash.
+	GetPartnerTransactions(ctx context.Context, partnerID string, req models.PartnerTransactionsRequest) (models.PartnerTransactionsResponse, error)
+	// GetStrategyPerformance returns attributed performance grouped by strategy.
+	GetStrategyPerformance(ctx context.Context, partnerID string, req models.FromTo) (models.StrategyPerformanceResponse, error)
 	// GetPartnerPolicy returns the partner's current policy (fees, allow/deny lists, limits).
 	GetPartnerPolicy(ctx context.Context, partnerID string) (models.Policy, error)
 	// UpdatePartnerPolicy overwrites the partner's policy. Only non-nil fields are applied.
@@ -99,7 +108,7 @@ type SDK interface {
 	// ClaimAllFees does the same as ClaimFees for every pending token on a chain (claimAll).
 	ClaimAllFees(ctx context.Context, reqBody models.PartnerFeeClaimAllRequest) (models.TxInfo, error)
 	// GetSupportedChains lists the chains on which partner fees can be claimed.
-	GetSupportedChains(ctx context.Context) ([]models.Chain, error)
+	GetSupportedChains(ctx context.Context) ([]models.PartnerChain, error)
 	// GetAllClaimAddresses lists the partner's configured fee claim addresses.
 	GetAllClaimAddresses(ctx context.Context, partnerID string) ([]models.ClaimAddress, error)
 	// AttachNewClaimAddress registers a new claim address for a chain.

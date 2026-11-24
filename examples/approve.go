@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/dev-earn/yifi-earn-sdk-go/models"
@@ -11,17 +13,21 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// Approve approves the Portals router to spend the wallet's USDT on polygon.
+// Approve approves the configured spender to spend the wallet's input token.
 // Required before an ERC20-input zap: the router pulls the token via
 // transferFrom, which reverts with TRANSFER_FROM_FAILED without an allowance.
 func Approve() {
 	ctx := context.Background()
-	rpcURL := rpcURL("arbitrum")
+	cfg := cycleConfigForRun()
+	rpcURL := rpcURL(cfg.chain)
 	privateKey := privateKey()
-	token := "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9"   // USDT on arbitrum
-	spender := "0x34b6a821d2f26c6b7cdb01Cd91895170C6574A0D" // Portals router (from the zap quote)
+	token := strings.TrimPrefix(cfg.inputToken, cfg.chain+":")
+	spender := getenv("YIFI_APPROVAL_SPENDER", "0x34b6a821d2f26c6b7cdb01cd91895170c6574a0d")
 
 	max := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
+	if value := os.Getenv("YIFI_APPROVAL_AMOUNT"); value != "" {
+		max.SetString(value, 10)
+	}
 	// approve(spender, maxUint256) selector 0x095ea7b3
 	data := append(common.FromHex("0x095ea7b3"),
 		append(common.LeftPadBytes(common.HexToAddress(spender).Bytes(), 32),
@@ -35,7 +41,7 @@ func Approve() {
 	if err != nil {
 		panic(fmt.Sprintf("approve: %s", err))
 	}
-	fmt.Printf("approve sent: https://polygonscan.com/tx/%s (waiting to mine)\n", hash)
+	fmt.Printf("approve sent: %s (waiting to mine)\n", hash)
 
 	client, err := ethclient.DialContext(ctx, rpcURL)
 	if err != nil {

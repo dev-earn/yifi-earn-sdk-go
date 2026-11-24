@@ -49,6 +49,7 @@ address, e.g. `bsc:0x0000000000000000000000000000000000000000`.
 ### Testnet
 
 ```go
+yifi.UseTestnet = true
 client, _ := yifi.NewClient()
 ```
 
@@ -90,7 +91,8 @@ See [`examples/sign.go`](examples/sign.go) for a complete sign-and-send helper.
 1. Get an API key (frontend or support).
 2. Initialize the client with `WithPartnerAuth`.
 3. Set your fee via `UpdatePartnerPolicy` (default `0.3`, max `0.7`).
-4. Build zaps with `BuildZap`; your fee is credited when the user signs.
+4. Quote and build zaps; your fee is credited after the transaction is confirmed
+   and processed by the distributor webhook.
 5. Check accrued fees with `GetFeeBalance` — split into `free` (accrued) and
    `pending` (pushed on-chain, claimable) buckets.
 6. Register a claim address with `AttachNewClaimAddress`.
@@ -114,15 +116,21 @@ if err := client.UpdatePartnerPolicy(ctx, auth.PartnerID, models.Policy{
 	panic(err)
 }
 
-// Build a zap for your user to sign.
-zap, err := client.BuildZap(ctx, models.ZapQuoteRequest{
+// Quote and build a zap for your user to sign.
+req := models.ZapQuoteRequest{
 	StrategyID:                  "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
 	InputToken:                  "ethereum:0x0000000000000000000000000000000000000000", // native ETH
 	InputAmount:                 "10000000000000000",                                    // 0.01 ETH (wei)
 	OutputToken:                 "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
 	Sender:                      "0xYourUserWallet", // the wallet that signs
 	SlippageTolerancePercentage: decimal.NewFromInt(1),
-})
+}
+quote, err := client.QuoteZap(ctx, req)
+if err != nil {
+	panic(err)
+}
+req.OrderID = quote.OrderID
+zap, err := client.BuildZap(ctx, req)
 if err != nil {
 	panic(err)
 }
@@ -147,17 +155,22 @@ cd examples
 cp .env.example .env   # fill in your credentials / RPC / signer key
 ```
 
-`examples/main.go` is a dispatcher — uncomment one scenario and run it:
+Run every public read method, plus an unsigned quote/build and existing wallet
+lookups, without broadcasting a transaction:
 
 ```bash
-go run .
+YIFI_EXAMPLE=public go run .
+# Include every decoded response:
+YIFI_EXAMPLE=public YIFI_VERBOSE=1 go run .
 ```
 
-Read-only scenarios (`Token`, `Market`, `Strategy`, `Partner`, `FeeBalance`,
-`SupportedChains`) are safe to run. Scenarios marked **MUTATING** in their doc
-comment (`UpdatePolicy`, `APIKeys`, `Zap`, `Claim`, `ClaimAll`,
-`AttachClaimAddress`) change live state or broadcast transactions — read them
-before running.
+The default `go run .` executes the **mutating** partner lifecycle for the
+existing partner configured by `YIFI_PARTNER_ID`, `YIFI_API_KEY`, and
+`YIFI_API_SECRET`. It creates and revokes a test API key, temporarily applies a
+fee, broadcasts a real zap and fee claim, checks reporting and settlement, and
+restores the original policy. It requires signer credentials and RPC settings.
+Read [`examples/partner_full_cycle.go`](examples/partner_full_cycle.go) before
+running it.
 
 ### RPC configuration (multi-chain)
 

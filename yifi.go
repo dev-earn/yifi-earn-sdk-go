@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,16 @@ func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) {
 		if hc != nil {
 			c.httpClient = hc
+		}
+	}
+}
+
+// WithBaseURL overrides the API host
+func WithBaseURL(raw string) Option {
+	return func(c *Client) {
+		u, err := url.Parse(strings.TrimSpace(raw))
+		if err == nil && u.Scheme != "" && u.Host != "" {
+			c.baseURL = u
 		}
 	}
 }
@@ -476,6 +487,21 @@ func (c *Client) GetRates(ctx context.Context) ([]models.RateFormat, error) {
 	return *res.Data, nil
 }
 
+func (c *Client) QuoteZap(ctx context.Context, quote models.ZapQuoteRequest) (models.ZapQuoteResponse, error) {
+	req, err := c.do(ctx, http.MethodPost, "/zap/quote", nil, quote)
+	if err != nil {
+		return models.ZapQuoteResponse{}, err
+	}
+	res, err := DoReq[models.ZapQuoteResponse](c.httpClient, req)
+	if err != nil {
+		return models.ZapQuoteResponse{}, err
+	}
+	if res.Data == nil {
+		return models.ZapQuoteResponse{}, nil
+	}
+	return *res.Data, nil
+}
+
 func (c *Client) BuildZap(ctx context.Context, quote models.ZapQuoteRequest) (models.Signature, error) {
 	req, err := c.do(ctx, http.MethodPost, "/zap/build", nil, quote)
 	if err != nil {
@@ -491,6 +517,37 @@ func (c *Client) BuildZap(ctx context.Context, quote models.ZapQuoteRequest) (mo
 		return models.Signature{}, nil
 	}
 
+	return *res.Data, nil
+}
+
+func (c *Client) GetTxInfo(ctx context.Context, orderID string) (models.WalletTxResponse, error) {
+	req, err := c.do(ctx, http.MethodGet, "/tx/"+url.PathEscape(orderID), nil, nil)
+	if err != nil {
+		return models.WalletTxResponse{}, err
+	}
+	res, err := DoReq[models.WalletTxResponse](c.httpClient, req)
+	if err != nil {
+		return models.WalletTxResponse{}, err
+	}
+	if res.Data == nil {
+		return models.WalletTxResponse{}, nil
+	}
+	return *res.Data, nil
+}
+
+func (c *Client) GetWalletTransaction(ctx context.Context, walletID, orderID string) (models.WalletTxResponse, error) {
+	path := "/transactions/" + url.PathEscape(walletID) + "/stats/" + url.PathEscape(orderID)
+	req, err := c.do(ctx, http.MethodGet, path, nil, nil)
+	if err != nil {
+		return models.WalletTxResponse{}, err
+	}
+	res, err := DoReq[models.WalletTxResponse](c.httpClient, req)
+	if err != nil {
+		return models.WalletTxResponse{}, err
+	}
+	if res.Data == nil {
+		return models.WalletTxResponse{}, nil
+	}
 	return *res.Data, nil
 }
 
@@ -531,6 +588,59 @@ func (c *Client) GetPartnerSummary(ctx context.Context, partnerID string, reques
 		return models.Summary{}, nil
 	}
 
+	return *res.Data, nil
+}
+
+func (c *Client) GetPartnerTransactions(ctx context.Context, partnerID string, request models.PartnerTransactionsRequest) (models.PartnerTransactionsResponse, error) {
+	q := encodeFromTo(request.FromTo)
+	if len(request.WalletIDs) > 0 {
+		q.Set("wallet_ids", strings.Join(request.WalletIDs, ","))
+	}
+	if len(request.StrategyIDs) > 0 {
+		q.Set("strategy_ids", strings.Join(request.StrategyIDs, ","))
+	}
+	if len(request.ChainIDs) > 0 {
+		q.Set("chain_ids", strings.Join(request.ChainIDs, ","))
+	}
+	if request.Type != "" {
+		q.Set("type", request.Type)
+	}
+	if request.Hash != "" {
+		q.Set("hash", request.Hash)
+	}
+	if request.Limit > 0 {
+		q.Set("limit", strconv.Itoa(request.Limit))
+	}
+	if request.Offset > 0 {
+		q.Set("offset", strconv.Itoa(request.Offset))
+	}
+	req, err := c.do(ctx, http.MethodGet, "/partners/"+url.PathEscape(partnerID)+"/transactions", q, nil)
+	if err != nil {
+		return models.PartnerTransactionsResponse{}, err
+	}
+	res, err := DoReq[models.PartnerTransactionsResponse](c.httpClient, req)
+	if err != nil {
+		return models.PartnerTransactionsResponse{}, err
+	}
+	if res.Data == nil {
+		return models.PartnerTransactionsResponse{}, nil
+	}
+	return *res.Data, nil
+}
+
+func (c *Client) GetStrategyPerformance(ctx context.Context, partnerID string, request models.FromTo) (models.StrategyPerformanceResponse, error) {
+	q := encodeFromTo(request)
+	req, err := c.do(ctx, http.MethodGet, "/partners/"+url.PathEscape(partnerID)+"/performance", q, nil)
+	if err != nil {
+		return models.StrategyPerformanceResponse{}, err
+	}
+	res, err := DoReq[models.StrategyPerformanceResponse](c.httpClient, req)
+	if err != nil {
+		return models.StrategyPerformanceResponse{}, err
+	}
+	if res.Data == nil {
+		return models.StrategyPerformanceResponse{}, nil
+	}
 	return *res.Data, nil
 }
 
@@ -578,7 +688,7 @@ func (c *Client) UpdatePartnerPolicy(ctx context.Context, partnerID string, poli
 		return err
 	}
 
-	_, err = DoReq[string](c.httpClient, req)
+	_, err = DoReq[any](c.httpClient, req)
 	return err
 }
 
@@ -624,7 +734,7 @@ func (c *Client) RevokeAPIKey(ctx context.Context, partnerID, apiKey string) err
 		return err
 	}
 
-	_, err = DoReq[struct{}](c.httpClient, req)
+	_, err = DoReq[any](c.httpClient, req)
 	return err
 }
 
@@ -682,13 +792,13 @@ func (c *Client) ClaimAllFees(ctx context.Context, reqBody models.PartnerFeeClai
 	return *res.Data, nil
 }
 
-func (c *Client) GetSupportedChains(ctx context.Context) ([]models.Chain, error) {
+func (c *Client) GetSupportedChains(ctx context.Context) ([]models.PartnerChain, error) {
 	req, err := c.do(ctx, http.MethodGet, "/partners/supported-chains", nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := DoReq[[]models.Chain](c.httpClient, req)
+	res, err := DoReq[[]models.PartnerChain](c.httpClient, req)
 	if err != nil {
 		return nil, err
 	}
@@ -724,16 +834,17 @@ func (c *Client) AttachNewClaimAddress(ctx context.Context, reqBody models.Claim
 		return err
 	}
 
-	_, err = DoReq[struct{}](c.httpClient, req)
+	_, err = DoReq[any](c.httpClient, req)
 	return err
 }
 
 func (c *Client) UpdateExistingClaimAddress(ctx context.Context, reqBody models.ClaimAddress) error {
-	req, err := c.do(ctx, http.MethodPut, "/partners/"+url.PathEscape(reqBody.PartnerID)+"/claim-addresses/"+url.PathEscape(reqBody.Address), nil, reqBody)
+	chainID := strconv.Itoa(reqBody.ChainID)
+	req, err := c.do(ctx, http.MethodPut, "/partners/"+url.PathEscape(reqBody.PartnerID)+"/claim-addresses/"+chainID, nil, reqBody)
 	if err != nil {
 		return err
 	}
 
-	_, err = DoReq[struct{}](c.httpClient, req)
+	_, err = DoReq[any](c.httpClient, req)
 	return err
 }

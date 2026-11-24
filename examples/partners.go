@@ -114,7 +114,8 @@ func AttachClaimAddress() {
 	if err := client.AttachNewClaimAddress(ctx, models.ClaimAddressPublic{
 		PartnerID: auth.PartnerID,
 		ChainID:   1,
-		Address:   "0x6b81BBBB084480CC4E3A94E1807c700991B035CF",
+		Address:   walletAddr(),
+		TOTPCode:  getenv("YIFI_TOTP_CODE", ""),
 	}); err != nil {
 		panic(fmt.Sprintf("attach claim address: %s", err))
 	}
@@ -130,8 +131,9 @@ func UpdateClaimAddress() {
 	if err := client.UpdateExistingClaimAddress(ctx, models.ClaimAddress{
 		PartnerID: auth.PartnerID,
 		ChainID:   1,
-		Address:   "0x6b81BBBB084480CC4E3A94E1807c700991B035CF",
+		Address:   walletAddr(),
 		Name:      &name,
+		TOTPCode:  getenv("YIFI_TOTP_CODE", ""),
 	}); err != nil {
 		panic(fmt.Sprintf("update claim address: %s", err))
 	}

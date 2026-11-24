@@ -26,6 +26,12 @@ func encodeTokensRequest(req models.TokensRequest) url.Values {
 	if req.Group != "" {
 		q.Set("group", req.Group)
 	}
+	if req.SortBy != "" {
+		q.Set("sortBy", req.SortBy)
+	}
+	if req.SortDirection != "" {
+		q.Set("sortDirection", req.SortDirection)
+	}
 	if req.Limit > 0 {
 		q.Set("limit", strconv.FormatInt(req.Limit, 10))
 	}
@@ -164,6 +170,13 @@ func encodeStrategiesRequest(req models.StrategySearch) url.Values {
 
 	if req.MaxAPR != nil {
 		q.Set("maxApr", req.MaxAPR.String())
+	}
+
+	if req.MaxRiskScore != nil {
+		q.Set("maxRiskScore", strconv.Itoa(*req.MaxRiskScore))
+	}
+	if req.Exclude {
+		q.Set("exclude", "true")
 	}
 
 	if req.SortBy != "" {

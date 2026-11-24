@@ -92,16 +92,22 @@ func StrategyZapQuote() {
 
 	const stETHStrategy = "ethereum:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
 
-	zap, err := client.BuildZap(ctx, models.ZapQuoteRequest{
+	req := models.ZapQuoteRequest{
 		StrategyID:                  stETHStrategy,
 		InputToken:                  "ethereum:0x0000000000000000000000000000000000000000", // native ETH
 		InputAmount:                 "10000000000000000",                                   // 0.01 ETH (wei)
 		OutputToken:                 stETHStrategy,
 		Sender:                      walletAddr(),
 		SlippageTolerancePercentage: decimal.NewFromInt(1),
-	})
+	}
+	quote, err := client.QuoteZap(ctx, req)
+	if err != nil {
+		panic(fmt.Sprintf("quote zap: %s", err))
+	}
+	req.OrderID = quote.OrderID
+	zap, err := client.BuildZap(ctx, req)
 	if err != nil {
 		panic(fmt.Sprintf("build zap: %s", err))
 	}
-	printJSON("zap quote", zap)
+	printJSON("zap build", zap)
 }
